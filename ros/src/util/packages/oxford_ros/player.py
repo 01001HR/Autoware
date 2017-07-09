@@ -150,6 +150,9 @@ class Lidar2Player (Lidar3Player):
     
     def _passEvent (self, timestamp, eventId, publish=True):
         scan = self.collector.pick()
+        scanz = np.zeros((scan.shape[0], 4), dtype=scan.dtype)
+        scanz[:,0:2] = scan[:,0:2]
+        scanz[:,3] = scan[:,2]
 #         scan = scan[:,0:2]
         header = std_msgs.msg.Header(
             stamp=rospy.Time.from_sec(timestamp), 
@@ -157,9 +160,10 @@ class Lidar2Player (Lidar3Player):
         fields = [
             PointField(name='x', offset=0, datatype=PointField.FLOAT32, count=1),
             PointField(name='y', offset=8, datatype=PointField.FLOAT32, count=1),
-            PointField(name='i', offset=16, datatype=PointField.FLOAT32, count=1)
+            PointField(name='z', offset=16, datatype=PointField.FLOAT32, count=1),
+            PointField(name='i', offset=24, datatype=PointField.FLOAT32, count=1)
         ]
-        msg = pcl2.create_cloud(header, fields, scan)
+        msg = pcl2.create_cloud(header, fields, scanz)
         if (publish):
             self.publisher.publish(msg)
         else:
