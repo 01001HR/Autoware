@@ -16,6 +16,7 @@ from sdk.TimerProcess import TimerProcess
 
 from geometry_msgs.msg import PoseStamped as PoseMsg
 from sensor_msgs.msg import Image as ImageMsg
+from sensor_msgs.msg import CameraInfo
 from sensor_msgs.msg import PointCloud2
 from sensor_msgs.msg import PointField
 from rosgraph_msgs.msg import Clock
@@ -28,7 +29,8 @@ import std_msgs
 class ImagePlayer:
     def __init__ (self, dataset):
         self.firstValidId = -1
-        self.publisher = rospy.Publisher ('/oxford/image', ImageMsg, queue_size=1)
+        self.publisher = rospy.Publisher ('/oxford/image_color', ImageMsg, queue_size=1)
+        self.publisherImgInfo = rospy.Publisher('/oxford/camera_info', CameraInfo, queue_size=1)
         self.imageList = dataset.getStereo()
         pkgpack = rospkg.RosPack()
         path = pkgpack.get_path('oxford_ros')
@@ -36,11 +38,22 @@ class ImagePlayer:
         
         calib_file = file(path+'/calibration_files/bb_xb3_center.yaml')
         conf = yaml.load(calib_file)
+        self.imageShape = (conf['image_height'], conf['image_width'])
         self.camera_matrix = np.reshape(conf['camera_matrix']['data'], (3,3))
         self.projection_matrix = np.reshape(conf['projection_matrix']['data'], (3,4))
         self.distortion_coefs = np.array(conf['distortion_coefficients']['data'])
 #         self.calibrator = cv2.cv.Load(path+'/calibration_files/bb_xb3_center.yaml')
         self.cvbridge = cv_bridge.CvBridge()
+        self.cameraInfo = self.createCameraInfoMessage()
+        
+    def createCameraInfoMessage (self):
+        cameraInfo = CameraInfo()
+        cameraInfo.width = self.imageShape[1]
+        cameraInfo.height = self.imageShape[0]
+        cameraInfo.K = self.camera_matrix.reshape((1,9))[0]
+        cameraInfo.P = self.projection_matrix.reshape((1,12))[0]
+        return cameraInfo
+        
         
     def initializeRun (self):
 #        File Collector
@@ -71,8 +84,10 @@ class ImagePlayer:
         
         msg = self.cvbridge.cv2_to_imgmsg(image_ctr, 'bgr8')
         msg.header.stamp = rospy.Time.from_sec (timestamp)
+        self.cameraInfo.header.stamp = msg.header.stamp
         if (publish):
             self.publisher.publish(msg)
+            self.publisherImgInfo.publish(self.cameraInfo)
         else:
             return msg
         
@@ -152,6 +167,8 @@ class Lidar2Player (Lidar3Player):
         scan = self.collector.pick()
         scanz = np.zeros((scan.shape[0], 4), dtype=scan.dtype)
         scanz[:,0:2] = scan[:,0:2]
+        # X Axis from scans is negated to comform with right-hand convention
+        scanz[:,0] = -scanz[:,0]
         scanz[:,3] = scan[:,2]
 #         scan = scan[:,0:2]
         header = std_msgs.msg.Header(
