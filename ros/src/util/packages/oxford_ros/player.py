@@ -27,6 +27,9 @@ import std_msgs
 
 
 class ImagePlayer:
+    
+    frameId = 'camera_view'
+    
     def __init__ (self, dataset):
         self.firstValidId = -1
         self.publisher = rospy.Publisher ('/oxford/image_color', ImageMsg, queue_size=1)
@@ -34,20 +37,31 @@ class ImagePlayer:
         self.imageList = dataset.getStereo()
         pkgpack = rospkg.RosPack()
         path = pkgpack.get_path('oxford_ros')
-#         self.cameraModel = sdk.CameraModel (path+'/models', sdk.CameraModel.cam_stereo_center)
+        self.cameraModel = sdk.CameraModel (path+'/models', sdk.CameraModel.cam_stereo_center)
         
         calib_file = file(path+'/calibration_files/bb_xb3_center.yaml')
         conf = yaml.load(calib_file)
         self.imageShape = (conf['image_height'], conf['image_width'])
-        self.camera_matrix = np.reshape(conf['camera_matrix']['data'], (3,3))
-        self.projection_matrix = np.reshape(conf['projection_matrix']['data'], (3,4))
+        self.camera_matrix2 = np.reshape(conf['camera_matrix']['data'], (3,3))
+        self.camera_matrix = np.eye(3)
+        self.camera_matrix[0,0] = self.cameraModel.focal_length[0]
+        self.camera_matrix[1,1] = self.cameraModel.focal_length[1]
+        self.camera_matrix[0,2] = self.cameraModel.principal_point[0]
+        self.camera_matrix[1,2] = self.cameraModel.principal_point[1]
+        
+#         self.projection_matrix = np.reshape(conf['projection_matrix']['data'], (3,4))
+        self.projection_matrix = np.zeros((3,4))
+        self.projection_matrix[0:3,0:3] = self.camera_matrix
+
         self.distortion_coefs = np.array(conf['distortion_coefficients']['data'])
+        
 #         self.calibrator = cv2.cv.Load(path+'/calibration_files/bb_xb3_center.yaml')
         self.cvbridge = cv_bridge.CvBridge()
         self.cameraInfo = self.createCameraInfoMessage()
         
     def createCameraInfoMessage (self):
         cameraInfo = CameraInfo()
+        cameraInfo.header.frame_id = self.frameId
         cameraInfo.width = self.imageShape[1]
         cameraInfo.height = self.imageShape[0]
         cameraInfo.K = self.camera_matrix.reshape((1,9))[0]
@@ -84,6 +98,7 @@ class ImagePlayer:
         
         msg = self.cvbridge.cv2_to_imgmsg(image_ctr, 'bgr8')
         msg.header.stamp = rospy.Time.from_sec (timestamp)
+        msg.header.frame_id = self.frameId
         self.cameraInfo.header.stamp = msg.header.stamp
         if (publish):
             self.publisher.publish(msg)
@@ -94,7 +109,7 @@ class ImagePlayer:
     def imagePostProcessing (self, imageMat):
         imageMat = cv2.cvtColor(imageMat, cv2.COLOR_BAYER_GR2BGR)
         # Using camera matrix
-        imageMat = cv2.undistort(imageMat, self.camera_matrix, self.distortion_coefs)
+        imageMat = cv2.undistort(imageMat, self.camera_matrix2, self.distortion_coefs)
         # Using LUT
 #         image_ctr = self.cameraModel.undistort (image_ctr)
         return imageMat
