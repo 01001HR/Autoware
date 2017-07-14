@@ -1,5 +1,6 @@
 #!/usr/bin/python
 
+import os
 import sdk
 import time
 import rospy
@@ -23,6 +24,7 @@ from rosgraph_msgs.msg import Clock
 import std_msgs.msg
 import sensor_msgs.point_cloud2 as pcl2
 import std_msgs
+from rospkg.common import ResourceNotFound
 
 
 
@@ -36,7 +38,10 @@ class ImagePlayer:
         self.publisherImgInfo = rospy.Publisher('/oxford/camera_info', CameraInfo, queue_size=1)
         self.imageList = dataset.getStereo()
         pkgpack = rospkg.RosPack()
-        path = pkgpack.get_path('oxford_ros')
+        try:
+            path = pkgpack.get_path('oxford_ros')
+        except ResourceNotFound:
+            path = os.path.dirname(os.path.abspath(__file__)) 
         self.cameraModel = sdk.CameraModel (path+'/models', sdk.CameraModel.cam_stereo_center)
         
         calib_file = file(path+'/calibration_files/bb_xb3_center.yaml')
