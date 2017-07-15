@@ -31,6 +31,7 @@ from rospkg.common import ResourceNotFound
 class ImagePlayer:
     
     frameId = 'camera_view'
+    topicName = '/oxford/image_color'
     
     def __init__ (self, dataset):
         self.firstValidId = -1
@@ -129,11 +130,12 @@ class ImagePlayer:
 
 class Lidar3Player:
     _lidarName = 'ldmrs'
+    topicName = '/oxford/ldmrs'
     
     def __init__ (self, dataset):
         self.firstValidId = -1
         self.lidarFileSet = dataset.getMainLidar()
-        self.publisher = rospy.Publisher ('/oxford/'+Lidar3Player._lidarName, PointCloud2, queue_size=10)
+        self.publisher = rospy.Publisher (self.topicName, PointCloud2, queue_size=10)
     
     def close (self):
         print ("Closing {} set".format(self._lidarName))
@@ -177,11 +179,12 @@ class Lidar3Player:
 
 class Lidar2Player (Lidar3Player):
     _lidarName = 'lms_front'
+    topicName = '/oxford/lms_front'
     
     def __init__ (self, dataset):
         self.firstValidId = -1
         self.lidarFileSet = dataset.getLidar2D('front')
-        self.publisher = rospy.Publisher ('/oxford/'+self._lidarName, PointCloud2, queue_size=10)
+        self.publisher = rospy.Publisher (self.topicName, PointCloud2, queue_size=10)
     
     def _passEvent (self, timestamp, eventId, publish=True):
         scan = self.collector.pick()
@@ -212,10 +215,12 @@ class Lidar2Player (Lidar3Player):
 
 
 class PosePlayer:
+    topicName = '/oxford/pose'
+    
     def __init__ (self, dataset):
         self.firstValidId = -1
         self.poses = dataset.getIns()
-        self.publisher = rospy.Publisher ('/oxford/pose', PoseMsg, queue_size=1)
+        self.publisher = rospy.Publisher (self.topicName, PoseMsg, queue_size=1)
         self.tfb = TransformBroadcaster()
         
     def close(self):
@@ -231,7 +236,7 @@ class PosePlayer:
     def _passEvent (self, timestamp, eventId, publish=True):
         poseRow = self.poses[eventId]
         curPose = PosePlayer.createPoseFromRPY(
-            poseRow[1], poseRow[2], poseRow[3], poseRow[4], -poseRow[5], -poseRow[6])
+            poseRow[1], poseRow[2], poseRow[3], poseRow[4], poseRow[5], poseRow[6])
         curPose.header.stamp = rospy.Time.from_sec(timestamp)
         curPose.header.frame_id = 'world'
         if (publish):

@@ -25,7 +25,7 @@ if __name__ == '__main__':
     
     for pose in poses:
         npose = PosePlayer.createPoseFromRPY (
-            pose[1], pose[2], pose[3], pose[4], -pose[5], -pose[6])
+            pose[1], pose[2], pose[3], pose[4], pose[5], pose[6])
         npose.header.frame_id = 'world'
         vPath.poses.append(npose)
         

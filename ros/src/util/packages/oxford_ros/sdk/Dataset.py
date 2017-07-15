@@ -88,6 +88,9 @@ class Dataset:
         if useOriginCorrection:
             insTbl[:,1] += Dataset.OriginCorrectionEasting
             insTbl[:,2] += Dataset.OriginCorrectionNorthing
+        # Correct pitch & yaw rotations to more sensible ROS convention; otherwise you will have problems later
+        insTbl[:,5] = -insTbl[:,5]
+        insTbl[:,6] = -insTbl[:,6]
         return insTbl
     
 #     def getExtrinsics (self, name):
