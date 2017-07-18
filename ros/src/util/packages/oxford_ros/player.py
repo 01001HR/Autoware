@@ -33,10 +33,14 @@ class ImagePlayer:
     frameId = 'camera_view'
     topicName = '/oxford/image_color'
     
-    def __init__ (self, dataset):
+    def __init__ (self, dataset, _publish=True):
+        self.publish = _publish
         self.firstValidId = -1
-        self.publisher = rospy.Publisher ('/oxford/image_color', ImageMsg, queue_size=1)
-        self.publisherImgInfo = rospy.Publisher('/oxford/camera_info', CameraInfo, queue_size=1)
+        
+        if (self.publish):
+            self.publisher = rospy.Publisher ('/oxford/image_color', ImageMsg, queue_size=1)
+            self.publisherImgInfo = rospy.Publisher('/oxford/camera_info', CameraInfo, queue_size=1)
+        
         self.imageList = dataset.getStereo()
         pkgpack = rospkg.RosPack()
         try:
@@ -102,15 +106,23 @@ class ImagePlayer:
         if (image_ctr is None):
             return
         
-        msg = self.cvbridge.cv2_to_imgmsg(image_ctr, 'bgr8')
-        msg.header.stamp = rospy.Time.from_sec (timestamp)
-        msg.header.frame_id = self.frameId
+        msg = self.createMessageFromMat(image_ctr, timestamp)
         self.cameraInfo.header.stamp = msg.header.stamp
         if (publish):
             self.publisher.publish(msg)
             self.publisherImgInfo.publish(self.cameraInfo)
         else:
             return msg
+        
+    def createMessageFromMat (self, imgMat, timestamp, compressed=False):
+#         g1 = self.cvbridge.cv2_to_compressed_imgmsg(imgMat, dst_format='png')
+        if compressed:
+            msg = self.cvbridge.cv2_to_compressed_imgmsg(imgMat, dst_format='png')
+        else:
+            msg = self.cvbridge.cv2_to_imgmsg(imgMat, 'bgr8')
+        msg.header.stamp = rospy.Time.from_sec(timestamp)
+        msg.header.frame_id = self.frameId
+        return msg
         
     def imagePostProcessing (self, imageMat):
         imageMat = cv2.cvtColor(imageMat, cv2.COLOR_BAYER_GR2BGR)
@@ -132,10 +144,13 @@ class Lidar3Player:
     _lidarName = 'ldmrs'
     topicName = '/oxford/ldmrs'
     
-    def __init__ (self, dataset):
+    def __init__ (self, dataset, publish=True):
         self.firstValidId = -1
         self.lidarFileSet = dataset.getMainLidar()
-        self.publisher = rospy.Publisher (self.topicName, PointCloud2, queue_size=10)
+        if (publish):
+            self.publisher = rospy.Publisher (self.topicName, PointCloud2, queue_size=10)
+        else:
+            self.publisher = None
     
     def close (self):
         print ("Closing {} set".format(self._lidarName))
@@ -175,7 +190,25 @@ class Lidar3Player:
     def readFileFunc (self, path):
         scan = np.fromfile(path, np.double)
         return scan.reshape ((len(scan) // 3,3)).astype(np.float32)
-        
+    
+    @staticmethod
+    def iteratorToMessage (dataset):
+        player = Lidar3Player (dataset, publish=False)
+        for scanr in player.lidarFileSet :
+            timestamp = scanr['timestamp']
+            path = scanr['path']
+            scan = player.readFileFunc(path)
+            header = std_msgs.msg.Header(
+                stamp=rospy.Time.from_sec(timestamp), 
+                frame_id=Lidar3Player._lidarName)
+            fields = [
+                PointField(name='x', offset=0, datatype=PointField.FLOAT32, count=1),
+                PointField(name='y', offset=8, datatype=PointField.FLOAT32, count=1),
+                PointField(name='z', offset=16, datatype=PointField.FLOAT32, count=1)
+            ]
+            msg = pcl2.create_cloud(header, fields, scan)
+            yield msg
+                    
 
 class Lidar2Player (Lidar3Player):
     _lidarName = 'lms_front'
@@ -268,6 +301,39 @@ class PosePlayer:
         p.pose.orientation.z = qt[2]
         p.pose.orientation.w = qt[3]
         return p
+    
+    @staticmethod
+    def createPoseMessages (dataset):
+        from tf2_msgs.msg import TFMessage
+        from std_msgs.msg import Header
+        from geometry_msgs.msg import Transform, \
+            TransformStamped, Vector3, Quaternion
+        
+        poseMsgs = []
+        poseList = dataset.getIns()
+        for ps in poseList :
+            curPose = PosePlayer.createPoseFromRPY(
+                ps[1], ps[2], ps[3], ps[4], ps[5], ps[6])
+            curPose.header.stamp = rospy.Time.from_sec(ps[0])
+            curPose.header.frame_id = 'world'
+            # create TF Message
+            tfmsg = TFMessage(transforms=[TransformStamped()])
+            tfmsg.transforms[0].header = Header(stamp=rospy.Time.from_sec(ps[0]))
+            tfmsg.transforms[0].header.frame_id = 'world'
+            tfmsg.transforms[0].child_frame_id = 'base_link'
+            tfmsg.transforms[0].transform = Transform()
+            tfmsg.transforms[0].transform.translation = \
+                Vector3(curPose.pose.position.x,
+                    curPose.pose.position.y,
+                    curPose.pose.position.z)
+            tfmsg.transforms[0].transform.rotation = \
+                Quaternion(x=curPose.pose.orientation.x,
+                    y=curPose.pose.orientation.y,
+                    z=curPose.pose.orientation.z,
+                    w=curPose.pose.orientation.w)
+            poseMsgs.append({'geom':curPose, 'tf':tfmsg})
+        return poseMsgs
+            
 
 
 class PlayerControl:
