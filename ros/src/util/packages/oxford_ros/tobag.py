@@ -11,18 +11,18 @@ def DatasetToRosbag (datasetDir, bagOutputPath):
     dataset = sdk.Dataset (datasetDir)
     bagOutput = rosbag.Bag(bagOutputPath, mode='w')
     
-#     images = ImagePlayer (dataset, _publish=False)
-#     for img in images.imageList:
-#         path = img['center']
-#         timestamp = img['timestamp']
-#         imageMsg = images.createMessageFromMat(images.readFileFunc (path), timestamp)
-#         bagOutput.write(ImagePlayer.topicName, imageMsg, t=imageMsg.header.stamp)
-            
-#     poses = PosePlayer.createPoseMessages(dataset)
-#     for ps in poses:
-#         curStamp = ps['geom'].header.stamp
-#         bagOutput.write(PosePlayer.topicName, ps['geom'], t=curStamp)
-#         bagOutput.write('/tf', ps['tf'], t=curStamp)
+    images = ImagePlayer (dataset, _publish=False)
+    for img in images.imageList:
+        path = img['center']
+        timestamp = img['timestamp']
+        imageMsg = images.createMessageFromMat(images.readFileFunc (path), timestamp)
+        bagOutput.write(ImagePlayer.topicName, imageMsg, t=imageMsg.header.stamp)
+              
+    poses = PosePlayer.createPoseMessages(dataset)
+    for ps in poses:
+        curStamp = ps['geom'].header.stamp
+        bagOutput.write(PosePlayer.topicName, ps['geom'], t=curStamp)
+        bagOutput.write('/tf', ps['tf'], t=curStamp)
         
     lidar3s = Lidar3Player.iteratorToMessage(dataset)
     for msg in lidar3s:
