@@ -27,6 +27,10 @@ def DatasetToRosbag (datasetDir, bagOutputPath):
     lidar3s = Lidar3Player.iteratorToMessage(dataset)
     for msg in lidar3s:
         bagOutput.write(Lidar3Player.topicName, msg, t=msg.header.stamp) 
+        
+    lidar2s = Lidar2Player.iteratorToMessage(dataset)
+    for msg in lidar2s:
+        bagOutput.write(Lidar2Player.topicName, msg, t=msg.header.stamp)
             
     bagOutput.close()
     

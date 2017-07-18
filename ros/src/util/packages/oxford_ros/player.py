@@ -139,6 +139,15 @@ class ImagePlayer:
             return None
         return self.imagePostProcessing(image)
 
+    @staticmethod
+    def iteratorToMessage (dataset):
+        player = ImagePlayer (dataset, _publish=False)
+        for imgInfo in player.imageList:
+            path = imgInfo['center']
+            timestamp = imgInfo['timestamp']
+            yield player.createMessageFromMat(player.readFileFunc (path), timestamp)
+
+
 
 class Lidar3Player:
     _lidarName = 'ldmrs'
@@ -206,21 +215,29 @@ class Lidar3Player:
                 PointField(name='y', offset=8, datatype=PointField.FLOAT32, count=1),
                 PointField(name='z', offset=16, datatype=PointField.FLOAT32, count=1)
             ]
-            msg = pcl2.create_cloud(header, fields, scan)
-            yield msg
+            yield pcl2.create_cloud(header, fields, scan)
                     
 
 class Lidar2Player (Lidar3Player):
     _lidarName = 'lms_front'
     topicName = '/oxford/lms_front'
     
-    def __init__ (self, dataset):
+    def __init__ (self, dataset, _publish=True):
         self.firstValidId = -1
         self.lidarFileSet = dataset.getLidar2D('front')
-        self.publisher = rospy.Publisher (self.topicName, PointCloud2, queue_size=10)
+        if (_publish):
+            self.publisher = rospy.Publisher (self.topicName, PointCloud2, queue_size=10)
     
     def _passEvent (self, timestamp, eventId, publish=True):
         scan = self.collector.pick()
+        msg = Lidar2Player.create2DScanMessage(scan)
+        if (publish):
+            self.publisher.publish(msg)
+        else:
+            return msg
+        
+    @staticmethod
+    def create2DScanMessage (scan):
         scanz = np.zeros((scan.shape[0], 4), dtype=scan.dtype)
         scanz[:,0:2] = scan[:,0:2]
         # X Axis from scans is negated to comform with right-hand convention
@@ -236,15 +253,15 @@ class Lidar2Player (Lidar3Player):
             PointField(name='z', offset=16, datatype=PointField.FLOAT32, count=1),
             PointField(name='i', offset=24, datatype=PointField.FLOAT32, count=1)
         ]
-        msg = pcl2.create_cloud(header, fields, scanz)
-        if (publish):
-            self.publisher.publish(msg)
-        else:
-            return msg
-        
-        
+        return pcl2.create_cloud(header, fields, scanz)
 
 
+    @staticmethod
+    def iteratorToMessage(dataset):
+        player = Lidar2Player(dataset)
+        for r in player.lidarFileSet:
+            scan = player.readFileFunc(r['path'])
+            yield Lidar2Player.create2DScanMessage(scan)
 
 
 class PosePlayer:
