@@ -140,12 +140,12 @@ class ImagePlayer:
         return self.imagePostProcessing(image)
 
     @staticmethod
-    def iteratorToMessage (dataset):
+    def iteratorToMessage (dataset, compressed=False):
         player = ImagePlayer (dataset, _publish=False)
         for imgInfo in player.imageList:
             path = imgInfo['center']
             timestamp = imgInfo['timestamp']
-            yield player.createMessageFromMat(player.readFileFunc (path), timestamp)
+            yield player.createMessageFromMat(player.readFileFunc (path), timestamp, compressed)
 
 
 
@@ -230,14 +230,14 @@ class Lidar2Player (Lidar3Player):
     
     def _passEvent (self, timestamp, eventId, publish=True):
         scan = self.collector.pick()
-        msg = Lidar2Player.create2DScanMessage(scan)
+        msg = Lidar2Player.create2DScanMessage(scan, timestamp)
         if (publish):
             self.publisher.publish(msg)
         else:
             return msg
         
     @staticmethod
-    def create2DScanMessage (scan):
+    def create2DScanMessage (scan, timestamp):
         scanz = np.zeros((scan.shape[0], 4), dtype=scan.dtype)
         scanz[:,0:2] = scan[:,0:2]
         # X Axis from scans is negated to comform with right-hand convention
@@ -246,7 +246,7 @@ class Lidar2Player (Lidar3Player):
 #         scan = scan[:,0:2]
         header = std_msgs.msg.Header(
             stamp=rospy.Time.from_sec(timestamp), 
-            frame_id=self._lidarName)
+            frame_id=Lidar2Player._lidarName)
         fields = [
             PointField(name='x', offset=0, datatype=PointField.FLOAT32, count=1),
             PointField(name='y', offset=8, datatype=PointField.FLOAT32, count=1),
@@ -261,7 +261,7 @@ class Lidar2Player (Lidar3Player):
         player = Lidar2Player(dataset)
         for r in player.lidarFileSet:
             scan = player.readFileFunc(r['path'])
-            yield Lidar2Player.create2DScanMessage(scan)
+            yield Lidar2Player.create2DScanMessage(scan, r['timestamp'])
 
 
 class PosePlayer:
