@@ -33,12 +33,16 @@ class ImagePlayer:
     frameId = 'camera_view'
     topicName = '/oxford/image_color'
     
-    def __init__ (self, dataset, _publish=True):
+    def __init__ (self, dataset, _publish=True, raw=False):
+        self.raw = raw
         self.publish = _publish
         self.firstValidId = -1
         
         if (self.publish):
-            self.publisher = rospy.Publisher ('/oxford/image_color', ImageMsg, queue_size=1)
+            if (self.raw):
+                self.publisher = rospy.Publisher ('/oxford/image_raw', ImageMsg, queue_size=1)
+            else:
+                self.publisher = rospy.Publisher ('/oxford/image_color', ImageMsg, queue_size=1)
             self.publisherImgInfo = rospy.Publisher('/oxford/camera_info', CameraInfo, queue_size=1)
         
         self.imageList = dataset.getStereo()
@@ -76,6 +80,8 @@ class ImagePlayer:
         cameraInfo.height = self.imageShape[0]
         cameraInfo.K = self.camera_matrix.reshape((1,9))[0]
         cameraInfo.P = self.projection_matrix.reshape((1,12))[0]
+        cameraInfo.distortion_model = 'plumb_bob'
+        cameraInfo.D = self.distortion_coefs
         return cameraInfo
         
         
@@ -101,8 +107,6 @@ class ImagePlayer:
     
     def _passEvent (self, timestamp, eventId, publish=True):
         image_ctr = self.collector.pick()
-#         image_ctr = cv2.imread(imageTarget['center'], cv2.IMREAD_ANYCOLOR)
-#         image_ctr = self.imagePostProcessing(image_ctr)
         if (image_ctr is None):
             return
         
@@ -115,21 +119,21 @@ class ImagePlayer:
             return msg
         
     def createMessageFromMat (self, imgMat, timestamp, compressed=False):
-#         g1 = self.cvbridge.cv2_to_compressed_imgmsg(imgMat, dst_format='png')
-        if compressed:
-            msg = self.cvbridge.cv2_to_compressed_imgmsg(imgMat, dst_format='png')
+        if self.raw==False:
+            if compressed:
+                msg = self.cvbridge.cv2_to_compressed_imgmsg(imgMat, dst_format='png')
+            else:
+                msg = self.cvbridge.cv2_to_imgmsg(imgMat, 'bgr8')
         else:
-            msg = self.cvbridge.cv2_to_imgmsg(imgMat, 'bgr8')
+            msg = self.cvbridge.cv2_to_imgmsg(imgMat, 'bayer_gbrg8')
         msg.header.stamp = rospy.Time.from_sec(timestamp)
         msg.header.frame_id = self.frameId
         return msg
         
     def imagePostProcessing (self, imageMat):
-        imageMat = cv2.cvtColor(imageMat, cv2.COLOR_BAYER_GR2BGR)
-        # Using camera matrix
-        imageMat = cv2.undistort(imageMat, self.camera_matrix2, self.distortion_coefs)
-        # Using LUT
-#         image_ctr = self.cameraModel.undistort (image_ctr)
+        if (self.raw==False):
+            imageMat = cv2.cvtColor(imageMat, cv2.COLOR_BAYER_GR2BGR)
+            imageMat = cv2.undistort(imageMat, self.camera_matrix2, self.distortion_coefs)
         return imageMat
     
     def readFileFunc (self, path):
@@ -443,7 +447,7 @@ if __name__ == '__main__' :
     rospy.init_node('oxford_player', anonymous=True)
     player = PlayerControl (args.dir, rate=args.rate, start=args.start)
     poses = PosePlayer (player.dataset)
-    images = ImagePlayer(player.dataset)
+    images = ImagePlayer(player.dataset, raw=True)
     lidar3d = Lidar3Player (player.dataset)
     lidarfront = Lidar2Player (player.dataset)
     player.add_data_player(poses)
