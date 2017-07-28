@@ -16,9 +16,15 @@ timeLimit = 1000
 
 def interpolatePose (targetTimestamp, poseTimestamps, poses):
     u_1 = bisect.bisect_left(poseTimestamps, targetTimestamp)-1
+    # Extreme case
+    if u_1 >= (len(poseTimestamps)-1):
+        return poses[u_1]
+        
     u_2 = u_1 + 1
+    
     fraction = (targetTimestamp - poseTimestamps[u_1]) / \
         (poseTimestamps[u_2] - poseTimestamps[u_1])
+
     p1 = poses[u_1]
     p2 = poses[u_2]
     movement = p2[0:3] - p1[0:3]
@@ -70,8 +76,9 @@ def buildMap(datasetDir):
     
     for fip in range(len(lidarFileList)) :
         
-        if (lidarFileList[fip]['timestamp'] > lidarFileList[0]['timestamp']+timeLimit):
-            break
+        if timeLimit > 0:
+            if (lidarFileList[fip]['timestamp'] > lidarFileList[0]['timestamp']+timeLimit):
+                break
         
         scan = readScan(lidarFileList[fip]['path'])
         # This pose represent vehicle pose in world coordinate.
@@ -101,6 +108,6 @@ def buildMap(datasetDir):
 
 if __name__ == '__main__' :
     datadir=sys.argv[1]
-    buildMap (datadir)
+    pcmap = buildMap (datadir)
     
     pass
