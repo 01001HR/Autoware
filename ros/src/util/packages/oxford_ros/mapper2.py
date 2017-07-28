@@ -11,7 +11,7 @@ import bisect
 base_link2lms_front_tr = [0.126, 3.746, -0.051]
 base_link2lms_front_qr = [0.524, 0.512, 0.483, -0.480]
 # limit mapping time length, in seconds
-timeLimit = 100
+timeLimit = 1000
 
 
 def interpolatePose (targetTimestamp, poseTimestamps, poses):
@@ -84,6 +84,7 @@ def buildMap(datasetDir):
         
     numOfPoints = sum([sc['scan'].shape[0] for sc in scanList])
     pcMap = np.zeros((numOfPoints, 3), dtype=np.float32)
+    print ("Found {} points".format(numOfPoints))
     
     i = 0
     for scan in scanList:
@@ -91,7 +92,7 @@ def buildMap(datasetDir):
         for p in range(ptList.shape[0]):
             pointInScan = ptList[p]
             pointInWorld = scan['trans'].dot(pointInScan)
-            pcMap[i] = pointInWorld
+            pcMap[i] = pointInWorld[0:3]
             i+=1
     
     return pcMap
